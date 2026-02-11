@@ -137,7 +137,7 @@ export const PoseCounter: React.FC = () => {
     const [debugInfo, setDebugInfo] = useState<string>("Initializing...");
 
     const onCameraLoad = () => {
-        setDebugInfo(prev => prev + " | Loaded");
+        setDebugInfo(val => val + " | Loaded");
     };
 
     useEffect(() => {
