@@ -80,59 +80,114 @@ const getHistory = (userId: number | null): WorkoutRecord[] => {
     }
 };
 
-// ─── Audio System (Web Audio API — mobile-compatible) ───
-let audioCtx: AudioContext | null = null;
-let audioUnlocked = false;
+// ─── Audio System (HTML5 Audio + generated WAV — works in Telegram WebView) ───
 
-const unlockAudio = () => {
-    if (audioUnlocked && audioCtx) return;
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        // Play a silent buffer to unlock on iOS
-        const buffer = audioCtx.createBuffer(1, 1, 22050);
-        const source = audioCtx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioCtx.destination);
-        source.start(0);
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        audioUnlocked = true;
-    } catch { /* audio not supported */ }
+// Generate a WAV file as base64 data URI from raw samples
+const generateWav = (samples: number[], sampleRate = 22050): string => {
+    const numSamples = samples.length;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+
+    // WAV header
+    const writeString = (offset: number, str: string) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // chunk size
+    view.setUint16(20, 1, true);  // PCM
+    view.setUint16(22, 1, true);  // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true);  // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+
+    // Write samples
+    for (let i = 0; i < numSamples; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, s * 32767, true);
+    }
+
+    // Convert to base64
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return 'data:audio/wav;base64,' + btoa(binary);
 };
 
-const playTone = (freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.4) => {
+// Generate a tone as an array of samples
+const generateTone = (freq: number, duration: number, volume: number, sampleRate = 22050): number[] => {
+    const samples: number[] = [];
+    const numSamples = Math.floor(sampleRate * duration);
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const envelope = Math.min(1, (numSamples - i) / (sampleRate * 0.05)); // fade out
+        samples.push(Math.sin(2 * Math.PI * freq * t) * volume * envelope);
+    }
+    return samples;
+};
+
+// Pre-generated sound data URIs
+const repBeepWav = generateWav(generateTone(880, 0.12, 0.6));
+
+const milestoneWav = generateWav([
+    ...generateTone(523, 0.1, 0.5),
+    ...generateTone(659, 0.1, 0.5),
+    ...generateTone(784, 0.12, 0.5),
+    ...generateTone(1047, 0.2, 0.6),
+]);
+
+const countdownBeepWav = generateWav(generateTone(660, 0.15, 0.7));
+
+const goBeepWav = generateWav([
+    ...generateTone(880, 0.1, 0.6),
+    ...generateTone(1100, 0.2, 0.7),
+]);
+
+// Audio pool for fast playback
+const audioPool: HTMLAudioElement[] = [];
+const POOL_SIZE = 4;
+
+const initAudioPool = () => {
+    if (audioPool.length > 0) return;
+    for (let i = 0; i < POOL_SIZE; i++) {
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audioPool.push(audio);
+    }
+};
+
+let poolIndex = 0;
+const playSound = (dataUri: string) => {
     try {
-        if (!audioCtx || audioCtx.state === 'closed') return;
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
+        if (audioPool.length === 0) initAudioPool();
+        const audio = audioPool[poolIndex % POOL_SIZE];
+        poolIndex++;
+        audio.src = dataUri;
+        audio.currentTime = 0;
+        audio.volume = 1.0;
+        audio.play().catch(() => { /* autoplay blocked */ });
     } catch { /* */ }
 };
 
-const playRepSound = () => playTone(880, 0.15, 'sine', 0.35);
-
-const playMilestoneSound = () => {
-    playTone(523, 0.12, 'sine', 0.4);
-    setTimeout(() => playTone(659, 0.12, 'sine', 0.4), 120);
-    setTimeout(() => playTone(784, 0.15, 'sine', 0.4), 240);
-    setTimeout(() => playTone(1047, 0.3, 'triangle', 0.45), 360);
+// Unlock audio on user gesture — play a silent sound
+const unlockAudio = () => {
+    initAudioPool();
+    const silent = generateWav(generateTone(1, 0.01, 0));
+    audioPool.forEach(a => {
+        a.src = silent;
+        a.play().catch(() => { });
+    });
 };
 
-const playCountdownBeep = () => playTone(660, 0.2, 'square', 0.3);
-const playGoSound = () => {
-    playTone(880, 0.15, 'square', 0.4);
-    setTimeout(() => playTone(1100, 0.3, 'sine', 0.45), 150);
-};
+const playRepSound = () => playSound(repBeepWav);
+const playMilestoneSound = () => playSound(milestoneWav);
+const playCountdownBeep = () => playSound(countdownBeepWav);
+const playGoSound = () => playSound(goBeepWav);
 
 // ─── Share Card Generator ───
 const generateShareCard = async (count: number, duration: string, totalAll: number): Promise<File> => {
