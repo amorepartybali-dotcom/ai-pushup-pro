@@ -589,18 +589,50 @@ export const PoseCounter: React.FC = () => {
             {/* Start Screen */}
             {phase === 'idle' && (
                 <div style={{
-                    position: 'absolute', bottom: 60, zIndex: 40,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 40%, #1a2744 100%)',
+                    padding: 24,
                 }}>
-                    <h1 style={{ color: 'white', fontSize: 28, fontWeight: 'bold', opacity: 0.5, margin: 0 }}>
-                        AI PUSHUP PRO
-                    </h1>
+                    {/* User badge */}
+                    {tgUser && (
+                        <div style={{
+                            position: 'absolute', top: 16,
+                            background: 'rgba(255,255,255,0.08)', padding: '4px 16px',
+                            borderRadius: 20,
+                        }}>
+                            <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                                👤 {tgUser.first_name}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Hero Image */}
+                    <img
+                        src="/hero.png"
+                        alt="AI Push-Up Counter"
+                        style={{
+                            width: '90%',
+                            maxWidth: 380,
+                            borderRadius: 16,
+                            marginBottom: 24,
+                            boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 8px 32px rgba(0,0,0,0.5)',
+                        }}
+                    />
 
                     {/* Quick stats */}
                     {history.length > 0 && (
-                        <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>
-                            Total: {history.reduce((s, r) => s + r.count, 0)} push-ups in {history.length} workouts
-                        </p>
+                        <div style={{
+                            background: 'rgba(57,255,20,0.08)',
+                            border: '1px solid rgba(57,255,20,0.2)',
+                            borderRadius: 12, padding: '8px 20px',
+                            marginBottom: 20,
+                        }}>
+                            <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
+                                🏆 {history.reduce((s, r) => s + r.count, 0)} push-ups in {history.length} workouts
+                            </span>
+                        </div>
                     )}
 
                     <button
@@ -612,10 +644,10 @@ export const PoseCounter: React.FC = () => {
                             boxShadow: '0 0 30px rgba(57,255,20,0.6)',
                         }}
                     >
-                        START CAMERA
+                        START WORKOUT
                     </button>
-                    <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>
-                        Press to enable AI Vision
+                    <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
+                        AI-powered push-up tracking
                     </p>
                 </div>
             )}
