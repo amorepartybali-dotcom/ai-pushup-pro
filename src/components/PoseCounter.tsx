@@ -80,6 +80,50 @@ const getHistory = (userId: number | null): WorkoutRecord[] => {
     }
 };
 
+// ─── Audio System (Web Audio API — works on mobile) ───
+const audioCtxRef = { current: null as AudioContext | null };
+
+const getAudioCtx = (): AudioContext => {
+    if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+};
+
+const playTone = (freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.3) => {
+    try {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+    } catch { /* audio not available */ }
+};
+
+const playRepSound = () => playTone(880, 0.12, 'sine', 0.25);
+
+const playMilestoneSound = () => {
+    playTone(523, 0.1, 'sine', 0.3);
+    setTimeout(() => playTone(659, 0.1, 'sine', 0.3), 100);
+    setTimeout(() => playTone(784, 0.15, 'sine', 0.3), 200);
+    setTimeout(() => playTone(1047, 0.3, 'triangle', 0.35), 300);
+};
+
+const playCountdownBeep = () => playTone(660, 0.15, 'sine', 0.2);
+const playGoSound = () => {
+    playTone(880, 0.15, 'sine', 0.3);
+    setTimeout(() => playTone(1100, 0.25, 'sine', 0.35), 120);
+};
+
 export const PoseCounter: React.FC = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,12 +131,13 @@ export const PoseCounter: React.FC = () => {
 
     const [status, setStatus] = useState("Tap START to begin");
     const [count, setCount] = useState(0);
-    const [phase, setPhase] = useState<'idle' | 'camera' | 'exercise' | 'results'>('idle');
+    const [phase, setPhase] = useState<'idle' | 'camera' | 'countdown' | 'exercise' | 'results'>('idle');
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isBodyReady, setIsBodyReady] = useState(false);
     const [tgUser, setTgUser] = useState<TgUser | null>(null);
     const [sessionStart, setSessionStart] = useState(0);
     const [history, setHistory] = useState<WorkoutRecord[]>([]);
+    const [countdown, setCountdown] = useState(0);
 
     // Refs for state machine
     const countRef = useRef(0);
@@ -119,6 +164,27 @@ export const PoseCounter: React.FC = () => {
         setTgUser(user);
         setHistory(getHistory(user?.id ?? null));
     }, []);
+
+    const startCountdown = () => {
+        // Init audio context on user gesture
+        getAudioCtx();
+        setPhase('countdown');
+        setCountdown(5);
+        let t = 5;
+        const interval = setInterval(() => {
+            t--;
+            if (t > 0) {
+                setCountdown(t);
+                playCountdownBeep();
+            } else {
+                clearInterval(interval);
+                setCountdown(0);
+                playGoSound();
+                startCamera();
+            }
+        }, 1000);
+        playCountdownBeep();
+    };
 
     const startCamera = async () => {
         setPhase('camera');
@@ -431,6 +497,14 @@ export const PoseCounter: React.FC = () => {
                 lastRepTime.current = now;
                 setCount(countRef.current);
                 setStatus("⬆️ Rep " + countRef.current + "!");
+
+                // Audio feedback
+                const c = countRef.current;
+                if (c % 10 === 0) {
+                    playMilestoneSound();
+                } else {
+                    playRepSound();
+                }
             }
         }
     };
@@ -514,18 +588,50 @@ export const PoseCounter: React.FC = () => {
                     </div>
                 )}
 
-                <button
-                    onClick={() => { setPhase('idle'); setCount(0); setErrorMsg(null); setIsBodyReady(false); }}
-                    style={{
-                        marginTop: 20,
-                        background: '#39ff14', color: 'black', fontWeight: 'bold',
-                        fontSize: 20, padding: '16px 44px', borderRadius: 50,
-                        border: 'none', cursor: 'pointer',
-                        boxShadow: '0 0 30px rgba(57,255,20,0.5)',
-                    }}
-                >
-                    NEW WORKOUT
-                </button>
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button
+                        onClick={() => { setPhase('idle'); setCount(0); setErrorMsg(null); setIsBodyReady(false); }}
+                        style={{
+                            background: '#39ff14', color: 'black', fontWeight: 'bold',
+                            fontSize: 18, padding: '14px 36px', borderRadius: 50,
+                            border: 'none', cursor: 'pointer',
+                            boxShadow: '0 0 30px rgba(57,255,20,0.5)',
+                        }}
+                    >
+                        NEW WORKOUT
+                    </button>
+
+                    {/* Share Button */}
+                    <button
+                        onClick={() => {
+                            const text = `💪 Just did ${count} push-ups in ${formatDuration(durationSec)}!\n🏆 Total: ${totalAll} all-time\n\nTry AI Push-Up Counter!`;
+                            try {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const tg = (window as any).Telegram?.WebApp;
+                                if (tg?.switchInlineQuery) {
+                                    tg.switchInlineQuery(text, ['users', 'groups', 'channels']);
+                                } else if (navigator.share) {
+                                    navigator.share({ title: 'AI Push-Up Pro', text });
+                                } else {
+                                    navigator.clipboard?.writeText(text);
+                                    setStatus('📋 Copied to clipboard!');
+                                }
+                            } catch {
+                                if (navigator.clipboard) {
+                                    navigator.clipboard.writeText(`💪 Just did ${count} push-ups!`);
+                                }
+                            }
+                        }}
+                        style={{
+                            background: 'rgba(57,255,20,0.15)', color: '#39ff14', fontWeight: 'bold',
+                            fontSize: 18, padding: '14px 36px', borderRadius: 50,
+                            border: '2px solid rgba(57,255,20,0.4)', cursor: 'pointer',
+                        }}
+                    >
+                        📤 SHARE
+                    </button>
+                </div>
             </div>
         );
     }
@@ -685,7 +791,7 @@ export const PoseCounter: React.FC = () => {
                     )}
 
                     <button
-                        onClick={startCamera}
+                        onClick={startCountdown}
                         style={{
                             background: '#39ff14', color: 'black', fontWeight: 'bold',
                             fontSize: 22, padding: '18px 48px', borderRadius: 50,
@@ -698,6 +804,32 @@ export const PoseCounter: React.FC = () => {
                     <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
                         AI-powered push-up tracking
                     </p>
+                </div>
+            )}
+
+            {/* Countdown Overlay */}
+            {phase === 'countdown' && (
+                <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 100%)',
+                }}>
+                    <p style={{ color: '#94a3b8', fontSize: 18, margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: 2 }}>
+                        Get into position!
+                    </p>
+                    <div style={{
+                        fontSize: 140, fontWeight: 900, color: '#39ff14',
+                        textShadow: '0 0 60px #39ff14, 0 0 120px rgba(57,255,20,0.3)',
+                        lineHeight: 1,
+                        animation: 'pulse 1s ease-in-out infinite',
+                    }}>
+                        {countdown}
+                    </div>
+                    <p style={{ color: '#64748b', fontSize: 14, marginTop: 24 }}>
+                        Lie down and place hands on floor
+                    </p>
+                    <style>{`@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
                 </div>
             )}
         </div>
