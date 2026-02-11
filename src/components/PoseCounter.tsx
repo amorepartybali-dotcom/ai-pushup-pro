@@ -165,28 +165,9 @@ export const PoseCounter: React.FC = () => {
         setHistory(getHistory(user?.id ?? null));
     }, []);
 
-    const startCountdown = () => {
-        // Init audio context on user gesture
+    const startWorkout = async () => {
+        // Init audio context on user gesture (must be in click handler)
         getAudioCtx();
-        setPhase('countdown');
-        setCountdown(5);
-        let t = 5;
-        const interval = setInterval(() => {
-            t--;
-            if (t > 0) {
-                setCountdown(t);
-                playCountdownBeep();
-            } else {
-                clearInterval(interval);
-                setCountdown(0);
-                playGoSound();
-                startCamera();
-            }
-        }, 1000);
-        playCountdownBeep();
-    };
-
-    const startCamera = async () => {
         setPhase('camera');
         setCount(0);
         countRef.current = 0;
@@ -197,9 +178,9 @@ export const PoseCounter: React.FC = () => {
         badFrameCount.current = 0;
         setIsBodyReady(false);
         setStatus("Starting camera...");
-        setSessionStart(Date.now());
 
         try {
+            // 1. Get camera access FIRST (triggers permission dialog)
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: 640, height: 480 },
                 audio: false,
@@ -211,13 +192,39 @@ export const PoseCounter: React.FC = () => {
                 videoRef.current.setAttribute('playsinline', 'true');
                 videoRef.current.muted = true;
                 await videoRef.current.play();
-                setStatus("Camera OK. Loading AI...");
-                loadMediaPipe();
             }
+
+            // 2. Camera ready → start countdown
+            setPhase('countdown');
+            setCountdown(5);
+            playCountdownBeep();
+            let t = 5;
+            await new Promise<void>((resolve) => {
+                const interval = setInterval(() => {
+                    t--;
+                    if (t > 0) {
+                        setCountdown(t);
+                        playCountdownBeep();
+                    } else {
+                        clearInterval(interval);
+                        setCountdown(0);
+                        playGoSound();
+                        resolve();
+                    }
+                }, 1000);
+            });
+
+            // 3. Countdown done → load AI
+            setPhase('camera');
+            setStatus("Loading AI...");
+            setSessionStart(Date.now());
+            loadMediaPipe();
+
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             setErrorMsg(msg);
             setStatus("Camera error");
+            setPhase('idle');
         }
     };
 
@@ -791,7 +798,7 @@ export const PoseCounter: React.FC = () => {
                     )}
 
                     <button
-                        onClick={startCountdown}
+                        onClick={startWorkout}
                         style={{
                             background: '#39ff14', color: 'black', fontWeight: 'bold',
                             fontSize: 22, padding: '18px 48px', borderRadius: 50,
