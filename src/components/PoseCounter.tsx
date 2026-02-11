@@ -134,15 +134,34 @@ export const PoseCounter: React.FC = () => {
         canvasCtx.restore();
     };
 
+    const [debugInfo, setDebugInfo] = useState<string>("");
+
+    // ... (keep error handling)
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (webcamRef.current?.video) {
+                const v = webcamRef.current.video;
+                setDebugInfo(`State: ${v.readyState}, Paused: ${v.paused}, Ended: ${v.ended}, Muted: ${v.muted}`);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+            {/* Debug Info (Temporary) */}
+            <div className="absolute top-0 right-0 bg-black/50 text-xs text-white p-2 z-50 pointer-events-none font-mono">
+                {debugInfo}
+            </div>
+
             {/* Error Message */}
             {errorMessage && (
+                // ... (keep error message)
                 <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black/80 z-50 p-4 text-center">
                     <div className="bg-red-900/50 p-6 rounded-xl border border-red-500">
                         <h3 className="text-red-500 text-xl font-bold mb-2">Camera Error</h3>
                         <p className="text-white">{errorMessage}</p>
-                        <p className="text-gray-400 text-sm mt-4">Please ensure you allowed camera access and are using HTTPS.</p>
                     </div>
                 </div>
             )}
@@ -154,6 +173,8 @@ export const PoseCounter: React.FC = () => {
                 mirrored={true}
                 onUserMediaError={onCameraError}
                 playsInline={true}
+                autoPlay={true}
+                muted={true}
                 videoConstraints={{
                     facingMode: "user",
                     width: 640,
