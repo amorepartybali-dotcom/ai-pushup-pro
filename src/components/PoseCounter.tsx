@@ -103,13 +103,15 @@ export const PoseCounter: React.FC = () => {
     const smoothAngle = useRef(160);
     const poseRef = useRef<{ close: () => void } | null>(null);
     const cameraRef = useRef<{ stop: () => void } | null>(null);
+    const badFrameCount = useRef(0);
 
     // Tuned for fast pushups
-    const BODY_READY_THRESHOLD = 8;
+    const BODY_READY_THRESHOLD = 5;
     const REP_COOLDOWN_MS = 150;    // Very short cooldown for fast reps
     const DOWN_ANGLE = 110;          // Easier to trigger "down"
     const UP_ANGLE = 145;            // Easier to trigger "up"
-    const SMOOTH_FACTOR = 0.15;      // Less smoothing = faster response
+    const SMOOTH_FACTOR = 0.6;       // Higher = more smoothing (60% old, 40% new)
+    const BAD_FRAME_TOLERANCE = 5;   // How many bad frames before pausing
 
     // Init Telegram user
     useEffect(() => {
@@ -126,6 +128,7 @@ export const PoseCounter: React.FC = () => {
         bodyReadyRef.current = false;
         bodyReadyFrames.current = 0;
         smoothAngle.current = 160;
+        badFrameCount.current = 0;
         setIsBodyReady(false);
         setStatus("Starting camera...");
         setSessionStart(Date.now());
@@ -242,7 +245,7 @@ export const PoseCounter: React.FC = () => {
 
         // 1. Torso must be roughly horizontal (shoulder & hip at similar height)
         const torsoHeightDiff = Math.abs(shoulderY - hipY);
-        if (torsoHeightDiff > 0.25) {
+        if (torsoHeightDiff > 0.35) {
             return { ok: false, reason: "Body not horizontal — lie flat!" };
         }
 
@@ -252,7 +255,7 @@ export const PoseCounter: React.FC = () => {
         const wristY = (landmarks[LM.LEFT_WRIST].y + landmarks[LM.RIGHT_WRIST].y) / 2;
         const wristAboveShoulder = shoulderY - wristY;
         // If wrists are much higher than shoulders (>15% of frame), not a pushup
-        if (wristAboveShoulder > 0.15) {
+        if (wristAboveShoulder > 0.25) {
             return { ok: false, reason: "Hands too high — get on the floor!" };
         }
 
@@ -381,12 +384,18 @@ export const PoseCounter: React.FC = () => {
             return;
         }
 
-        // CONTINUOUS VALIDATION: If person leaves pushup position, pause counting
+        // CONTINUOUS VALIDATION: If person leaves pushup position, tolerate brief glitches
         if (!posCheck.ok) {
-            setStatus(`⚠️ ${posCheck.reason}`);
-            // Don't reset bodyReady — just pause counting
-            // They can resume without re-locking
-            return;
+            badFrameCount.current++;
+            if (badFrameCount.current >= BAD_FRAME_TOLERANCE) {
+                setStatus(`⚠️ ${posCheck.reason}`);
+                // Don't reset bodyReady — just pause counting
+                // They can resume without re-locking
+                return;
+            }
+            // Under tolerance: keep counting through brief glitches
+        } else {
+            badFrameCount.current = 0;
         }
 
         // Count pushups (only reaches here if in valid pushup position)
