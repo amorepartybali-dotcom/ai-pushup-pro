@@ -144,7 +144,7 @@ export const PoseCounter: React.FC = () => {
         const interval = setInterval(() => {
             const ref = webcamRef.current;
             const video = ref?.video;
-            setDebugInfo(prev => `Ref: ${!!ref}, Video: ${!!video}, Ready: ${video?.readyState}`);
+            setDebugInfo(`Ref: ${!!ref}, Video: ${!!video}, Ready: ${video?.readyState}`);
         }, 500);
         return () => clearInterval(interval);
     }, []);
