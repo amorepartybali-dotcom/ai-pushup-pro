@@ -196,9 +196,9 @@ export const PoseCounter: React.FC = () => {
 
             // 2. Camera ready → start countdown
             setPhase('countdown');
-            setCountdown(5);
+            setCountdown(10);
             playCountdownBeep();
-            let t = 5;
+            let t = 10;
             await new Promise<void>((resolve) => {
                 const interval = setInterval(() => {
                     t--;
@@ -616,18 +616,23 @@ export const PoseCounter: React.FC = () => {
                             try {
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const tg = (window as any).Telegram?.WebApp;
-                                if (tg?.switchInlineQuery) {
-                                    tg.switchInlineQuery(text, ['users', 'groups', 'channels']);
+                                if (tg) {
+                                    // Use Telegram's native share
+                                    const shareText = encodeURIComponent(text);
+                                    const shareUrl = `https://t.me/share/url?text=${shareText}`;
+                                    tg.openTelegramLink(shareUrl);
                                 } else if (navigator.share) {
                                     navigator.share({ title: 'AI Push-Up Pro', text });
-                                } else {
-                                    navigator.clipboard?.writeText(text);
-                                    setStatus('📋 Copied to clipboard!');
+                                } else if (navigator.clipboard) {
+                                    navigator.clipboard.writeText(text);
+                                    alert('Copied to clipboard!');
                                 }
                             } catch {
-                                if (navigator.clipboard) {
-                                    navigator.clipboard.writeText(`💪 Just did ${count} push-ups!`);
-                                }
+                                // Fallback: try clipboard
+                                try {
+                                    navigator.clipboard?.writeText(`💪 Just did ${count} push-ups!`);
+                                    alert('Copied to clipboard!');
+                                } catch { /* */ }
                             }
                         }}
                         style={{
