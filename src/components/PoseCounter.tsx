@@ -134,24 +134,25 @@ export const PoseCounter: React.FC = () => {
         canvasCtx.restore();
     };
 
-    const [debugInfo, setDebugInfo] = useState<string>("");
+    const [debugInfo, setDebugInfo] = useState<string>("Initializing...");
 
-    // ... (keep error handling)
+    const onCameraLoad = () => {
+        setDebugInfo(prev => prev + " | Loaded");
+    };
 
     useEffect(() => {
         const interval = setInterval(() => {
-            if (webcamRef.current?.video) {
-                const v = webcamRef.current.video;
-                setDebugInfo(`State: ${v.readyState}, Paused: ${v.paused}, Ended: ${v.ended}, Muted: ${v.muted}`);
-            }
-        }, 1000);
+            const ref = webcamRef.current;
+            const video = ref?.video;
+            setDebugInfo(prev => `Ref: ${!!ref}, Video: ${!!video}, Ready: ${video?.readyState}`);
+        }, 500);
         return () => clearInterval(interval);
     }, []);
 
     return (
         <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
-            {/* Debug Info (Temporary) */}
-            <div className="absolute top-0 right-0 bg-black/50 text-xs text-white p-2 z-50 pointer-events-none font-mono">
+            {/* Debug Info */}
+            <div className="absolute top-0 right-0 bg-black/50 text-xs text-white p-2 z-50 pointer-events-none font-mono whitespace-pre-wrap max-w-[200px]">
                 {debugInfo}
             </div>
 
@@ -172,13 +173,12 @@ export const PoseCounter: React.FC = () => {
                 className="absolute top-0 left-0 w-full h-full object-cover z-0"
                 mirrored={true}
                 onUserMediaError={onCameraError}
+                onUserMedia={onCameraLoad}
                 playsInline={true}
                 autoPlay={true}
                 muted={true}
                 videoConstraints={{
-                    facingMode: "user",
-                    width: 640,
-                    height: 480
+                    facingMode: "user"
                 }}
             />
 
