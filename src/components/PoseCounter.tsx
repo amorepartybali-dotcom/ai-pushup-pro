@@ -80,48 +80,127 @@ const getHistory = (userId: number | null): WorkoutRecord[] => {
     }
 };
 
-// ─── Audio System (Web Audio API — works on mobile) ───
-const audioCtxRef = { current: null as AudioContext | null };
+// ─── Audio System (Web Audio API — mobile-compatible) ───
+let audioCtx: AudioContext | null = null;
+let audioUnlocked = false;
 
-const getAudioCtx = (): AudioContext => {
-    if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
+const unlockAudio = () => {
+    if (audioUnlocked && audioCtx) return;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // Play a silent buffer to unlock on iOS
+        const buffer = audioCtx.createBuffer(1, 1, 22050);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        audioUnlocked = true;
+    } catch { /* audio not supported */ }
 };
 
-const playTone = (freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.3) => {
+const playTone = (freq: number, duration: number, type: OscillatorType = 'sine', volume = 0.4) => {
     try {
-        const ctx = getAudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        if (!audioCtx || audioCtx.state === 'closed') return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
         osc.type = type;
         osc.frequency.value = freq;
-        gain.gain.setValueAtTime(volume, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + duration);
-    } catch { /* audio not available */ }
+        osc.stop(audioCtx.currentTime + duration);
+    } catch { /* */ }
 };
 
-const playRepSound = () => playTone(880, 0.12, 'sine', 0.25);
+const playRepSound = () => playTone(880, 0.15, 'sine', 0.35);
 
 const playMilestoneSound = () => {
-    playTone(523, 0.1, 'sine', 0.3);
-    setTimeout(() => playTone(659, 0.1, 'sine', 0.3), 100);
-    setTimeout(() => playTone(784, 0.15, 'sine', 0.3), 200);
-    setTimeout(() => playTone(1047, 0.3, 'triangle', 0.35), 300);
+    playTone(523, 0.12, 'sine', 0.4);
+    setTimeout(() => playTone(659, 0.12, 'sine', 0.4), 120);
+    setTimeout(() => playTone(784, 0.15, 'sine', 0.4), 240);
+    setTimeout(() => playTone(1047, 0.3, 'triangle', 0.45), 360);
 };
 
-const playCountdownBeep = () => playTone(660, 0.15, 'sine', 0.2);
+const playCountdownBeep = () => playTone(660, 0.2, 'square', 0.3);
 const playGoSound = () => {
-    playTone(880, 0.15, 'sine', 0.3);
-    setTimeout(() => playTone(1100, 0.25, 'sine', 0.35), 120);
+    playTone(880, 0.15, 'square', 0.4);
+    setTimeout(() => playTone(1100, 0.3, 'sine', 0.45), 150);
+};
+
+// ─── Share Card Generator ───
+const generateShareCard = async (count: number, duration: string, totalAll: number): Promise<File> => {
+    const W = 1080, H = 1920;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d')!;
+
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0a0f1a');
+    bg.addColorStop(0.5, '#0f172a');
+    bg.addColorStop(1, '#1a2744');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Glow circle behind count
+    const glow = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, 300);
+    glow.addColorStop(0, 'rgba(57,255,20,0.15)');
+    glow.addColorStop(1, 'rgba(57,255,20,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#39ff14';
+    ctx.font = 'bold 48px system-ui, sans-serif';
+    ctx.fillText('WORKOUT COMPLETE', W / 2, H * 0.22);
+
+    // Count
+    ctx.fillStyle = '#39ff14';
+    ctx.font = 'bold 220px system-ui, sans-serif';
+    ctx.shadowColor = '#39ff14';
+    ctx.shadowBlur = 60;
+    ctx.fillText(String(count), W / 2, H * 0.42);
+    ctx.shadowBlur = 0;
+
+    // "push-ups" label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '40px system-ui, sans-serif';
+    ctx.fillText('push-ups', W / 2, H * 0.47);
+
+    // Stats
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 52px system-ui, sans-serif';
+    ctx.fillText(`${duration}  ·  ${totalAll} all-time`, W / 2, H * 0.56);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(57,255,20,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.2, H * 0.62);
+    ctx.lineTo(W * 0.8, H * 0.62);
+    ctx.stroke();
+
+    // App name
+    ctx.fillStyle = '#39ff14';
+    ctx.font = 'bold 36px system-ui, sans-serif';
+    ctx.fillText('💪 AI PUSH-UP PRO', W / 2, H * 0.68);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '30px system-ui, sans-serif';
+    ctx.fillText('AI-powered push-up tracking', W / 2, H * 0.72);
+
+    // Convert to file
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+    return new File([blob], 'pushup-result.png', { type: 'image/png' });
 };
 
 export const PoseCounter: React.FC = () => {
@@ -166,8 +245,8 @@ export const PoseCounter: React.FC = () => {
     }, []);
 
     const startWorkout = async () => {
-        // Init audio context on user gesture (must be in click handler)
-        getAudioCtx();
+        // Unlock audio on user gesture (critical for iOS)
+        unlockAudio();
         setPhase('camera');
         setCount(0);
         countRef.current = 0;
@@ -609,39 +688,39 @@ export const PoseCounter: React.FC = () => {
                         NEW WORKOUT
                     </button>
 
-                    {/* Share Button */}
+                    {/* Share to Instagram Story */}
                     <button
-                        onClick={() => {
-                            const text = `💪 Just did ${count} push-ups in ${formatDuration(durationSec)}!\n🏆 Total: ${totalAll} all-time\n\nTry AI Push-Up Counter!`;
+                        onClick={async () => {
                             try {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const tg = (window as any).Telegram?.WebApp;
-                                if (tg) {
-                                    // Use Telegram's native share
-                                    const shareText = encodeURIComponent(text);
-                                    const shareUrl = `https://t.me/share/url?text=${shareText}`;
-                                    tg.openTelegramLink(shareUrl);
-                                } else if (navigator.share) {
-                                    navigator.share({ title: 'AI Push-Up Pro', text });
-                                } else if (navigator.clipboard) {
-                                    navigator.clipboard.writeText(text);
-                                    alert('Copied to clipboard!');
+                                const file = await generateShareCard(count, formatDuration(durationSec), totalAll);
+                                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                                    await navigator.share({
+                                        title: 'AI Push-Up Pro',
+                                        text: `💪 Just did ${count} push-ups!`,
+                                        files: [file],
+                                    });
+                                } else {
+                                    // Fallback: download the image
+                                    const url = URL.createObjectURL(file);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'pushup-result.png';
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                    alert('Image saved! Share it to your Instagram Story 📸');
                                 }
                             } catch {
-                                // Fallback: try clipboard
-                                try {
-                                    navigator.clipboard?.writeText(`💪 Just did ${count} push-ups!`);
-                                    alert('Copied to clipboard!');
-                                } catch { /* */ }
+                                alert('Could not share. Try taking a screenshot!');
                             }
                         }}
                         style={{
-                            background: 'rgba(57,255,20,0.15)', color: '#39ff14', fontWeight: 'bold',
+                            background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)',
+                            color: 'white', fontWeight: 'bold',
                             fontSize: 18, padding: '14px 36px', borderRadius: 50,
-                            border: '2px solid rgba(57,255,20,0.4)', cursor: 'pointer',
+                            border: 'none', cursor: 'pointer',
                         }}
                     >
-                        📤 SHARE
+                        📸 SHARE TO STORY
                     </button>
                 </div>
             </div>
