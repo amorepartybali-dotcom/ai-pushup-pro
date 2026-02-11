@@ -226,19 +226,49 @@ export const PoseCounter: React.FC = () => {
         }
     };
 
-    const checkBodyReady = (landmarks: Landmark[]): boolean => {
+    // Check if body is in a valid pushup/plank position
+    const isInPushupPosition = (landmarks: Landmark[]): { ok: boolean; reason: string } => {
         const requiredParts = [
             LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER,
             LM.LEFT_ELBOW, LM.LEFT_WRIST,
             LM.LEFT_HIP, LM.RIGHT_HIP,
         ];
-        if (!requiredParts.every(i => isVisible(landmarks[i]))) return false;
+        if (!requiredParts.every(i => isVisible(landmarks[i]))) {
+            return { ok: false, reason: "Can't see full body" };
+        }
 
         const shoulderY = (landmarks[LM.LEFT_SHOULDER].y + landmarks[LM.RIGHT_SHOULDER].y) / 2;
         const hipY = (landmarks[LM.LEFT_HIP].y + landmarks[LM.RIGHT_HIP].y) / 2;
-        const heightDiff = Math.abs(shoulderY - hipY);
 
-        return heightDiff < 0.3;
+        // 1. Torso must be roughly horizontal (shoulder & hip at similar height)
+        const torsoHeightDiff = Math.abs(shoulderY - hipY);
+        if (torsoHeightDiff > 0.25) {
+            return { ok: false, reason: "Body not horizontal — lie flat!" };
+        }
+
+        // 2. Wrists should be roughly at shoulder level or below (on the floor)
+        //    In pushup: wrist.y ≈ shoulder.y (both near same height)
+        //    Standing & bending arms: wrist.y << shoulder.y (wrists much higher)
+        const wristY = (landmarks[LM.LEFT_WRIST].y + landmarks[LM.RIGHT_WRIST].y) / 2;
+        const wristAboveShoulder = shoulderY - wristY;
+        // If wrists are much higher than shoulders (>15% of frame), not a pushup
+        if (wristAboveShoulder > 0.15) {
+            return { ok: false, reason: "Hands too high — get on the floor!" };
+        }
+
+        // 3. Check body is not upright (standing)
+        //    Standing: shoulders much higher (lower Y) than hips
+        //    We check if the torso is more vertical than horizontal
+        const shoulderX = (landmarks[LM.LEFT_SHOULDER].x + landmarks[LM.RIGHT_SHOULDER].x) / 2;
+        const hipX = (landmarks[LM.LEFT_HIP].x + landmarks[LM.RIGHT_HIP].x) / 2;
+        const horizontalSpread = Math.abs(shoulderX - hipX);
+        const verticalSpread = Math.abs(shoulderY - hipY);
+        // If vertical spread > horizontal spread, person is likely standing
+        if (horizontalSpread < 0.03 && verticalSpread > 0.1) {
+            return { ok: false, reason: "You're standing! Lie down for pushups" };
+        }
+
+        return { ok: true, reason: "" };
     };
 
     const getElbowAngle = (landmarks: Landmark[]): number | null => {
@@ -328,10 +358,12 @@ export const PoseCounter: React.FC = () => {
             }
         });
 
-        // Body readiness
+        // Check pushup position (ALWAYS — both initially and during counting)
+        const posCheck = isInPushupPosition(landmarks);
+
         if (!bodyReadyRef.current) {
-            const ready = checkBodyReady(landmarks);
-            if (ready) {
+            // Initial lock-in phase
+            if (posCheck.ok) {
                 bodyReadyFrames.current++;
                 if (bodyReadyFrames.current >= BODY_READY_THRESHOLD) {
                     bodyReadyRef.current = true;
@@ -344,12 +376,20 @@ export const PoseCounter: React.FC = () => {
                 }
             } else {
                 bodyReadyFrames.current = Math.max(0, bodyReadyFrames.current - 1);
-                setStatus("🔎 Get into pushup position...");
+                setStatus(`🔎 ${posCheck.reason}`);
             }
             return;
         }
 
-        // Count pushups
+        // CONTINUOUS VALIDATION: If person leaves pushup position, pause counting
+        if (!posCheck.ok) {
+            setStatus(`⚠️ ${posCheck.reason}`);
+            // Don't reset bodyReady — just pause counting
+            // They can resume without re-locking
+            return;
+        }
+
+        // Count pushups (only reaches here if in valid pushup position)
         const rawAngle = getElbowAngle(landmarks);
         if (rawAngle === null) return;
 
