@@ -22,6 +22,8 @@ export const PoseCounter: React.FC = () => {
     const [feedback, setFeedback] = useState("Get Ready");
     const [isCameraActive, setIsCameraActive] = useState(false);
 
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
     // State machine refs to avoid closure staleness in onResults
     const countRef = useRef(0);
     const stageRef = useRef<"UP" | "DOWN">("UP");
@@ -57,6 +59,11 @@ export const PoseCounter: React.FC = () => {
             camera.start();
         }
     }, [isCameraActive]); // Restart camera if active state changes logic (though we just hide button)
+
+    const onCameraError = (error: string | DOMException) => {
+        console.error("Camera Error:", error);
+        setErrorMessage(typeof error === 'string' ? error : error.message || "Unknown Camera Error");
+    };
 
     const onResults = (results: Results) => {
         if (!canvasRef.current || !webcamRef.current?.video) return;
@@ -129,11 +136,28 @@ export const PoseCounter: React.FC = () => {
 
     return (
         <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+            {/* Error Message */}
+            {errorMessage && (
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black/80 z-50 p-4 text-center">
+                    <div className="bg-red-900/50 p-6 rounded-xl border border-red-500">
+                        <h3 className="text-red-500 text-xl font-bold mb-2">Camera Error</h3>
+                        <p className="text-white">{errorMessage}</p>
+                        <p className="text-gray-400 text-sm mt-4">Please ensure you allowed camera access and are using HTTPS.</p>
+                    </div>
+                </div>
+            )}
+
             {/* Camera Feed */}
             <Webcam
                 ref={webcamRef}
                 className="absolute top-0 left-0 w-full h-full object-cover z-0"
                 mirrored={true}
+                onUserMediaError={onCameraError}
+                videoConstraints={{
+                    facingMode: "user",
+                    width: 640,
+                    height: 480
+                }}
             />
 
             {/* Canvas Overlay */}
