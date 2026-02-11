@@ -150,27 +150,33 @@ export const PoseCounter: React.FC = () => {
     }, []);
 
     return (
-        <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+        <div className="relative w-full h-screen bg-slate-900 flex flex-col items-center justify-center overflow-hidden">
             {/* Debug Info */}
-            <div className="absolute top-0 right-0 bg-black/50 text-xs text-white p-2 z-50 pointer-events-none font-mono whitespace-pre-wrap max-w-[200px]">
-                {debugInfo}
+            <div className="absolute top-0 right-0 bg-red-600 text-white p-4 z-50 font-mono text-xs max-w-[50%] opacity-80 pointer-events-none">
+                DEBUG: {debugInfo}
+            </div>
+
+            {/* Background Status (Visible when camera is off or loading) */}
+            <div className="absolute z-0 flex flex-col items-center justify-center text-gray-500">
+                <h1 className="text-2xl font-bold mb-2 opacity-50">AI PUSHUP PRO</h1>
+                <p className="text-sm">System Ready. Waiting for Camera...</p>
+                <div className="mt-4 w-12 h-12 border-4 border-gray-700 border-t-green-500 rounded-full animate-spin"></div>
             </div>
 
             {/* Error Message */}
             {errorMessage && (
-                // ... (keep error message)
-                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black/80 z-50 p-4 text-center">
-                    <div className="bg-red-900/50 p-6 rounded-xl border border-red-500">
-                        <h3 className="text-red-500 text-xl font-bold mb-2">Camera Error</h3>
-                        <p className="text-white">{errorMessage}</p>
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black/90 z-50 p-4 text-center">
+                    <div className="bg-red-900/80 p-6 rounded-xl border-2 border-red-500 max-w-sm">
+                        <h3 className="text-red-400 text-xl font-bold mb-2">Camera Error</h3>
+                        <p className="text-white text-lg">{errorMessage}</p>
                     </div>
                 </div>
             )}
 
-            {/* Camera Feed */}
+            {/* Camera Feed - Force Visibility */}
             <Webcam
                 ref={webcamRef}
-                className="absolute top-0 left-0 w-full h-full object-cover z-0"
+                className={`absolute top-0 left-0 w-full h-full object-cover z-10 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
                 mirrored={true}
                 onUserMediaError={onCameraError}
                 onUserMedia={onCameraLoad}
@@ -185,11 +191,12 @@ export const PoseCounter: React.FC = () => {
             {/* Canvas Overlay */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full object-cover z-10"
+                className="absolute top-0 left-0 w-full h-full object-cover z-20 pointer-events-none"
             />
 
             {/* HUD */}
-            <div className="absolute top-10 left-0 w-full flex flex-col items-center z-20 pointer-events-none">
+            <div className="absolute top-10 left-0 w-full flex flex-col items-center z-30 pointer-events-none">
+                {/* ... (keep HUD content) */}
                 <div className="bg-black/50 px-6 py-2 rounded-full mb-4 backdrop-blur-sm">
                     <span className="text-white text-xl font-bold">{feedback}</span>
                 </div>
@@ -200,13 +207,14 @@ export const PoseCounter: React.FC = () => {
 
             {/* Controls */}
             {!isCameraActive && (
-                <div className="absolute bottom-10 z-30 pointer-events-auto">
+                <div className="absolute bottom-20 z-40 pointer-events-auto flex flex-col items-center gap-4">
                     <button
                         onClick={() => setIsCameraActive(true)}
-                        className="bg-[#39ff14] text-black font-bold py-4 px-10 rounded-full text-xl hover:bg-[#32e012] transition shadow-[0_0_20px_rgba(57,255,20,0.6)] cursor-pointer"
+                        className="bg-[#39ff14] text-black font-bold py-6 px-12 rounded-full text-2xl hover:bg-[#32e012] transition shadow-[0_0_30px_rgba(57,255,20,0.6)] cursor-pointer active:scale-95"
                     >
-                        Start Camera
+                        START CAMERA
                     </button>
+                    <p className="text-gray-400 text-sm">Press to enable AI Vision</p>
                 </div>
             )}
         </div>
