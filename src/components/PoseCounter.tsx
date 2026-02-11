@@ -153,6 +153,7 @@ export const PoseCounter: React.FC = () => {
                 className="absolute top-0 left-0 w-full h-full object-cover z-0"
                 mirrored={true}
                 onUserMediaError={onCameraError}
+                playsInline={true}
                 videoConstraints={{
                     facingMode: "user",
                     width: 640,
