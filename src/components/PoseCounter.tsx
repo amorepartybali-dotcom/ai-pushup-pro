@@ -48,12 +48,15 @@ const getTelegramUser = (): TgUser | null => {
 // Simple localStorage history
 const HISTORY_KEY = 'pushup_history';
 
+type ExerciseType = 'pushups' | 'squats';
+
 interface WorkoutRecord {
     userId: number | null;
     userName: string;
     count: number;
     date: string;
     durationSec: number;
+    exercise?: ExerciseType;
 }
 
 const saveWorkout = (record: WorkoutRecord) => {
@@ -272,6 +275,8 @@ export const PoseCounter: React.FC = () => {
     const [sessionStart, setSessionStart] = useState(0);
     const [history, setHistory] = useState<WorkoutRecord[]>([]);
     const [countdown, setCountdown] = useState(0);
+    const [exercise, setExercise] = useState<ExerciseType>('pushups');
+    const exerciseRef = useRef<ExerciseType>('pushups');
 
     // Refs for state machine
     const countRef = useRef(0);
@@ -302,6 +307,7 @@ export const PoseCounter: React.FC = () => {
     const startWorkout = async () => {
         // Unlock audio on user gesture (critical for iOS)
         unlockAudio();
+        exerciseRef.current = exercise;
         setPhase('camera');
         setCount(0);
         countRef.current = 0;
@@ -375,14 +381,11 @@ export const PoseCounter: React.FC = () => {
         }
 
         const durationSec = Math.round((Date.now() - sessionStart) / 1000);
-        const userName = tgUser
-            ? `${tgUser.first_name}${tgUser.last_name ? ' ' + tgUser.last_name : ''}`
-            : 'Guest';
-
         const record: WorkoutRecord = {
             userId: tgUser?.id ?? null,
-            userName,
+            userName: tgUser?.first_name ?? 'Guest',
             count: countRef.current,
+            exercise: exerciseRef.current,
             date: new Date().toISOString(),
             durationSec,
         };
@@ -427,7 +430,9 @@ export const PoseCounter: React.FC = () => {
                 cameraRef.current = camera;
                 camera.start();
                 setPhase('exercise');
-                setStatus("AI ready! Get into pushup position...");
+                setStatus(exerciseRef.current === 'pushups'
+                    ? "AI ready! Get into pushup position..."
+                    : "AI ready! Stand in front of camera...");
             }
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -450,32 +455,52 @@ export const PoseCounter: React.FC = () => {
         const shoulderY = (landmarks[LM.LEFT_SHOULDER].y + landmarks[LM.RIGHT_SHOULDER].y) / 2;
         const hipY = (landmarks[LM.LEFT_HIP].y + landmarks[LM.RIGHT_HIP].y) / 2;
 
-        // 1. Torso must be roughly horizontal (shoulder & hip at similar height)
         const torsoHeightDiff = Math.abs(shoulderY - hipY);
         if (torsoHeightDiff > 0.35) {
             return { ok: false, reason: "Body not horizontal — lie flat!" };
         }
 
-        // 2. Wrists should be roughly at shoulder level or below (on the floor)
-        //    In pushup: wrist.y ≈ shoulder.y (both near same height)
-        //    Standing & bending arms: wrist.y << shoulder.y (wrists much higher)
         const wristY = (landmarks[LM.LEFT_WRIST].y + landmarks[LM.RIGHT_WRIST].y) / 2;
         const wristAboveShoulder = shoulderY - wristY;
-        // If wrists are much higher than shoulders (>15% of frame), not a pushup
         if (wristAboveShoulder > 0.25) {
             return { ok: false, reason: "Hands too high — get on the floor!" };
         }
 
-        // 3. Check body is not upright (standing)
-        //    Standing: shoulders much higher (lower Y) than hips
-        //    We check if the torso is more vertical than horizontal
         const shoulderX = (landmarks[LM.LEFT_SHOULDER].x + landmarks[LM.RIGHT_SHOULDER].x) / 2;
         const hipX = (landmarks[LM.LEFT_HIP].x + landmarks[LM.RIGHT_HIP].x) / 2;
         const horizontalSpread = Math.abs(shoulderX - hipX);
         const verticalSpread = Math.abs(shoulderY - hipY);
-        // If vertical spread > horizontal spread, person is likely standing
         if (horizontalSpread < 0.03 && verticalSpread > 0.1) {
             return { ok: false, reason: "You're standing! Lie down for pushups" };
+        }
+
+        return { ok: true, reason: "" };
+    };
+
+    // Check if body is in valid squat position (standing upright)
+    const isInSquatPosition = (landmarks: Landmark[]): { ok: boolean; reason: string } => {
+        const requiredParts = [
+            LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER,
+            LM.LEFT_HIP, LM.RIGHT_HIP,
+            LM.LEFT_KNEE, LM.LEFT_ANKLE,
+        ];
+        if (!requiredParts.every(i => isVisible(landmarks[i]))) {
+            return { ok: false, reason: "Can't see full body — step back" };
+        }
+
+        const shoulderY = (landmarks[LM.LEFT_SHOULDER].y + landmarks[LM.RIGHT_SHOULDER].y) / 2;
+        const hipY = (landmarks[LM.LEFT_HIP].y + landmarks[LM.RIGHT_HIP].y) / 2;
+
+        // Body should be more vertical than horizontal
+        if (shoulderY > hipY) {
+            return { ok: false, reason: "Stand up straight!" };
+        }
+
+        // Check knees are visible
+        const kneeOk = isVisible(landmarks[LM.LEFT_KNEE]) || isVisible(landmarks[LM.RIGHT_KNEE]);
+        const ankleOk = isVisible(landmarks[LM.LEFT_ANKLE]) || isVisible(landmarks[LM.RIGHT_ANKLE]);
+        if (!kneeOk || !ankleOk) {
+            return { ok: false, reason: "Can't see legs — step back" };
         }
 
         return { ok: true, reason: "" };
@@ -498,6 +523,27 @@ export const PoseCounter: React.FC = () => {
             return calcAngle(ls, le, lw);
         } else if (rightOk) {
             return calcAngle(rs, re, rw);
+        }
+        return null;
+    };
+
+    const getKneeAngle = (landmarks: Landmark[]): number | null => {
+        const lh = landmarks[LM.LEFT_HIP];
+        const lk = landmarks[LM.LEFT_KNEE];
+        const la = landmarks[LM.LEFT_ANKLE];
+        const leftOk = isVisible(lh) && isVisible(lk) && isVisible(la);
+
+        const rh = landmarks[LM.RIGHT_HIP];
+        const rk = landmarks[LM.RIGHT_KNEE];
+        const ra = landmarks[LM.RIGHT_ANKLE];
+        const rightOk = isVisible(rh) && isVisible(rk) && isVisible(ra);
+
+        if (leftOk && rightOk) {
+            return (calcAngle(lh, lk, la) + calcAngle(rh, rk, ra)) / 2;
+        } else if (leftOk) {
+            return calcAngle(lh, lk, la);
+        } else if (rightOk) {
+            return calcAngle(rh, rk, ra);
         }
         return null;
     };
@@ -568,19 +614,19 @@ export const PoseCounter: React.FC = () => {
             }
         });
 
-        // Check pushup position (ALWAYS — both initially and during counting)
-        const posCheck = isInPushupPosition(landmarks);
+        // Check body position based on exercise type
+        const isSquats = exerciseRef.current === 'squats';
+        const posCheck = isSquats ? isInSquatPosition(landmarks) : isInPushupPosition(landmarks);
 
         if (!bodyReadyRef.current) {
-            // Initial lock-in phase
             if (posCheck.ok) {
                 bodyReadyFrames.current++;
                 if (bodyReadyFrames.current >= BODY_READY_THRESHOLD) {
                     bodyReadyRef.current = true;
                     setIsBodyReady(true);
                     stageRef.current = "UP";
-                    smoothAngle.current = 160;
-                    setStatus("✅ GO! Start pushing!");
+                    smoothAngle.current = isSquats ? 170 : 160;
+                    setStatus(isSquats ? "✅ GO! Start squatting!" : "✅ GO! Start pushing!");
                 } else {
                     setStatus(`Detecting pose... (${bodyReadyFrames.current}/${BODY_READY_THRESHOLD})`);
                 }
@@ -591,47 +637,47 @@ export const PoseCounter: React.FC = () => {
             return;
         }
 
-        // CONTINUOUS VALIDATION: If person leaves pushup position, tolerate brief glitches
         if (!posCheck.ok) {
             badFrameCount.current++;
             if (badFrameCount.current >= BAD_FRAME_TOLERANCE) {
                 setStatus(`⚠️ ${posCheck.reason}`);
-                // Don't reset bodyReady — just pause counting
-                // They can resume without re-locking
                 return;
             }
-            // Under tolerance: keep counting through brief glitches
         } else {
             badFrameCount.current = 0;
         }
 
-        // Count pushups (only reaches here if in valid pushup position)
-        const rawAngle = getElbowAngle(landmarks);
+        // Get angle based on exercise type
+        const rawAngle = isSquats ? getKneeAngle(landmarks) : getElbowAngle(landmarks);
         if (rawAngle === null) return;
 
         smoothAngle.current = SMOOTH_FACTOR * smoothAngle.current + (1 - SMOOTH_FACTOR) * rawAngle;
         const angle = smoothAngle.current;
 
-        // Show angle
-        const elbow = landmarks[LM.LEFT_ELBOW];
+        // Thresholds differ for squats
+        const downThreshold = isSquats ? 100 : DOWN_ANGLE;  // squats: knee < 100°
+        const upThreshold = isSquats ? 155 : UP_ANGLE;        // squats: knee > 155°
+
+        // Show angle near the joint
+        const angleLandmark = isSquats ? landmarks[LM.LEFT_KNEE] : landmarks[LM.LEFT_ELBOW];
         ctx.font = "bold 28px monospace";
         ctx.fillStyle = "white";
         ctx.strokeStyle = "black";
         ctx.lineWidth = 3;
         const angleText = `${Math.round(angle)}°`;
-        ctx.strokeText(angleText, elbow.x * canvas.width + 12, elbow.y * canvas.height);
-        ctx.fillText(angleText, elbow.x * canvas.width + 12, elbow.y * canvas.height);
+        ctx.strokeText(angleText, angleLandmark.x * canvas.width + 12, angleLandmark.y * canvas.height);
+        ctx.fillText(angleText, angleLandmark.x * canvas.width + 12, angleLandmark.y * canvas.height);
 
         const now = Date.now();
 
-        if (angle < DOWN_ANGLE) {
+        if (angle < downThreshold) {
             if (stageRef.current !== "DOWN") {
                 stageRef.current = "DOWN";
-                setStatus("⬇️ Good Depth!");
+                setStatus(isSquats ? "⬇️ Good Squat!" : "⬇️ Good Depth!");
             }
         }
 
-        if (angle > UP_ANGLE && stageRef.current === "DOWN") {
+        if (angle > upThreshold && stageRef.current === "DOWN") {
             if (now - lastRepTime.current > REP_COOLDOWN_MS) {
                 stageRef.current = "UP";
                 countRef.current += 1;
@@ -639,7 +685,6 @@ export const PoseCounter: React.FC = () => {
                 setCount(countRef.current);
                 setStatus("⬆️ Rep " + countRef.current + "!");
 
-                // Audio feedback
                 const c = countRef.current;
                 if (c % 10 === 0) {
                     playMilestoneSound();
@@ -686,7 +731,9 @@ export const PoseCounter: React.FC = () => {
                 }}>
                     {count}
                 </div>
-                <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>push-ups</p>
+                <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>
+                    {exercise === 'squats' ? 'squats' : 'push-ups'}
+                </p>
 
                 <div style={{
                     display: 'flex', gap: 24, margin: '20px 0',
@@ -917,10 +964,47 @@ export const PoseCounter: React.FC = () => {
                             width: '90%',
                             maxWidth: 380,
                             borderRadius: 16,
-                            marginBottom: 24,
+                            marginBottom: 20,
                             boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 8px 32px rgba(0,0,0,0.5)',
                         }}
                     />
+
+                    {/* Exercise selector */}
+                    <div style={{
+                        display: 'flex', gap: 12, marginBottom: 20, width: '100%', maxWidth: 340,
+                    }}>
+                        {(['pushups', 'squats'] as ExerciseType[]).map(ex => (
+                            <button
+                                key={ex}
+                                onClick={() => setExercise(ex)}
+                                style={{
+                                    flex: 1, padding: '14px 8px',
+                                    borderRadius: 14,
+                                    border: exercise === ex
+                                        ? '2px solid #39ff14'
+                                        : '2px solid rgba(255,255,255,0.12)',
+                                    background: exercise === ex
+                                        ? 'rgba(57,255,20,0.12)'
+                                        : 'rgba(255,255,255,0.04)',
+                                    cursor: 'pointer',
+                                    display: 'flex', flexDirection: 'column',
+                                    alignItems: 'center', gap: 4,
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <span style={{ fontSize: 28 }}>
+                                    {ex === 'pushups' ? '💪' : '🦵'}
+                                </span>
+                                <span style={{
+                                    color: exercise === ex ? '#39ff14' : '#94a3b8',
+                                    fontSize: 14, fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                }}>
+                                    {ex === 'pushups' ? 'Push-ups' : 'Squats'}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
 
                     {/* Quick stats */}
                     {history.length > 0 && (
@@ -931,7 +1015,7 @@ export const PoseCounter: React.FC = () => {
                             marginBottom: 20,
                         }}>
                             <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
-                                🏆 {history.reduce((s, r) => s + r.count, 0)} push-ups in {history.length} workouts
+                                🏆 {history.reduce((s, r) => s + r.count, 0)} reps in {history.length} workouts
                             </span>
                         </div>
                     )}
@@ -945,10 +1029,10 @@ export const PoseCounter: React.FC = () => {
                             boxShadow: '0 0 30px rgba(57,255,20,0.6)',
                         }}
                     >
-                        START WORKOUT
+                        START {exercise === 'pushups' ? 'PUSH-UPS' : 'SQUATS'}
                     </button>
                     <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
-                        AI-powered push-up tracking
+                        AI-powered exercise tracking
                     </p>
                 </div>
             )}
