@@ -887,222 +887,69 @@ export const PoseCounter: React.FC = () => {
                 </div>
             )}
 
-            {/* Start Screen — Premium Landing */}
+            {/* Start Screen */}
             {phase === 'idle' && (
                 <div style={{
                     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40,
-                    display: 'flex', flexDirection: 'column',
-                    background: 'linear-gradient(170deg, #040d08 0%, #0a1a10 30%, #0d1f14 60%, #081a0e 100%)',
-                    padding: '40px 24px 32px',
-                    overflow: 'auto',
-                    fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 40%, #1a2744 100%)',
+                    padding: 24,
                 }}>
-                    {/* Animated network grid background */}
-                    <div style={{
-                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                        overflow: 'hidden', pointerEvents: 'none', zIndex: 0,
-                    }}>
-                        <svg width="100%" height="100%" style={{ position: 'absolute', opacity: 0.15 }}>
-                            {/* Grid lines */}
-                            {Array.from({ length: 8 }).map((_, i) => (
-                                <line key={`h${i}`} x1="0" y1={`${12.5 * (i + 1)}%`} x2="100%" y2={`${12.5 * (i + 1)}%`}
-                                    stroke="#39ff14" strokeWidth="0.5" opacity="0.3" />
-                            ))}
-                            {Array.from({ length: 5 }).map((_, i) => (
-                                <line key={`v${i}`} x1={`${20 * (i + 1)}%`} y1="0" x2={`${20 * (i + 1)}%`} y2="100%"
-                                    stroke="#39ff14" strokeWidth="0.5" opacity="0.3" />
-                            ))}
-                            {/* Network connection lines */}
-                            <line x1="10%" y1="15%" x2="35%" y2="25%" stroke="#39ff14" strokeWidth="0.8" opacity="0.4" />
-                            <line x1="35%" y1="25%" x2="70%" y2="10%" stroke="#39ff14" strokeWidth="0.8" opacity="0.3" />
-                            <line x1="70%" y1="10%" x2="90%" y2="30%" stroke="#39ff14" strokeWidth="0.8" opacity="0.4" />
-                            <line x1="15%" y1="70%" x2="40%" y2="85%" stroke="#39ff14" strokeWidth="0.8" opacity="0.3" />
-                            <line x1="40%" y1="85%" x2="75%" y2="75%" stroke="#39ff14" strokeWidth="0.8" opacity="0.4" />
-                            <line x1="75%" y1="75%" x2="95%" y2="90%" stroke="#39ff14" strokeWidth="0.8" opacity="0.3" />
-                            <line x1="5%" y1="40%" x2="25%" y2="55%" stroke="#39ff14" strokeWidth="0.8" opacity="0.2" />
-                            <line x1="80%" y1="45%" x2="95%" y2="60%" stroke="#39ff14" strokeWidth="0.8" opacity="0.2" />
-                            {/* Glowing dots at intersections */}
-                            {[[10, 15], [35, 25], [70, 10], [90, 30], [15, 70], [40, 85], [75, 75], [95, 90], [5, 40], [25, 55], [80, 45], [95, 60], [50, 5], [50, 95]].map(([x, y], i) => (
-                                <g key={`d${i}`}>
-                                    <circle cx={`${x}%`} cy={`${y}%`} r="3" fill="#39ff14" opacity="0.6">
-                                        <animate attributeName="opacity" values="0.3;0.8;0.3" dur={`${2 + i * 0.3}s`} repeatCount="indefinite" />
-                                    </circle>
-                                    <circle cx={`${x}%`} cy={`${y}%`} r="6" fill="none" stroke="#39ff14" strokeWidth="0.5" opacity="0.2">
-                                        <animate attributeName="r" values="4;10;4" dur={`${3 + i * 0.2}s`} repeatCount="indefinite" />
-                                        <animate attributeName="opacity" values="0.3;0;0.3" dur={`${3 + i * 0.2}s`} repeatCount="indefinite" />
-                                    </circle>
-                                </g>
-                            ))}
-                        </svg>
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flex: 1 }}>
-
-                        {/* Title */}
-                        <h1 style={{
-                            color: 'white', fontSize: 36, fontWeight: 900, lineHeight: 1.1,
-                            margin: '0 0 28px', letterSpacing: -0.5,
-                        }}>
-                            Next-Gen<br />
-                            Fitness<br />
-                            Tracking<br />
-                            inside <span style={{ color: '#39ff14' }}>Telegram</span>
-                        </h1>
-
-                        {/* Body wireframe + phone mockup area */}
+                    {/* User badge */}
+                    {tgUser && (
                         <div style={{
-                            position: 'relative', width: '100%', height: 260,
-                            display: 'flex', justifyContent: 'center', alignItems: 'center',
-                            margin: '0 0 20px',
+                            position: 'absolute', top: 16,
+                            background: 'rgba(255,255,255,0.08)', padding: '4px 16px',
+                            borderRadius: 20,
                         }}>
-                            {/* AI Skeleton wireframe */}
-                            <svg width="140" height="240" viewBox="0 0 140 240" style={{
-                                position: 'absolute', left: '5%', opacity: 0.7,
-                                filter: 'drop-shadow(0 0 8px rgba(57,255,20,0.4))',
-                            }}>
-                                {/* Head */}
-                                <circle cx="70" cy="20" r="14" fill="none" stroke="#39ff14" strokeWidth="1.5" opacity="0.6" />
-                                {/* Spine */}
-                                <line x1="70" y1="34" x2="70" y2="120" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Shoulders */}
-                                <line x1="30" y1="55" x2="110" y2="55" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Left arm */}
-                                <line x1="30" y1="55" x2="15" y2="95" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                <line x1="15" y1="95" x2="10" y2="130" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Right arm */}
-                                <line x1="110" y1="55" x2="125" y2="95" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                <line x1="125" y1="95" x2="130" y2="130" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Hips */}
-                                <line x1="45" y1="120" x2="95" y2="120" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Left leg */}
-                                <line x1="45" y1="120" x2="35" y2="175" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                <line x1="35" y1="175" x2="30" y2="230" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Right leg */}
-                                <line x1="95" y1="120" x2="105" y2="175" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                <line x1="105" y1="175" x2="110" y2="230" stroke="#39ff14" strokeWidth="1.2" opacity="0.5" />
-                                {/* Joint dots */}
-                                {[[70, 20], [70, 55], [30, 55], [110, 55], [15, 95], [125, 95], [10, 130], [130, 130], [70, 120], [45, 120], [95, 120], [35, 175], [105, 175], [30, 230], [110, 230]].map(([x, y], i) => (
-                                    <circle key={i} cx={x} cy={y} r="4" fill="#39ff14" opacity="0.9">
-                                        <animate attributeName="opacity" values="0.5;1;0.5" dur={`${1.5 + i * 0.1}s`} repeatCount="indefinite" />
-                                    </circle>
-                                ))}
-                            </svg>
-
-                            {/* Phone mockup */}
-                            <div style={{
-                                position: 'absolute', right: '5%',
-                                width: 140, height: 240,
-                                background: '#111', borderRadius: 20,
-                                border: '2px solid #333',
-                                display: 'flex', flexDirection: 'column',
-                                alignItems: 'center', justifyContent: 'center',
-                                overflow: 'hidden',
-                                boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 20px 60px rgba(0,0,0,0.5)',
-                            }}>
-                                {/* Notch */}
-                                <div style={{
-                                    position: 'absolute', top: 6, width: 50, height: 6,
-                                    background: '#222', borderRadius: 3,
-                                }} />
-                                {/* Count display */}
-                                <div style={{
-                                    fontSize: 56, fontWeight: 900, color: '#39ff14',
-                                    textShadow: '0 0 20px #39ff14',
-                                    lineHeight: 1,
-                                }}>12</div>
-                                {/* Mini skeleton in phone */}
-                                <svg width="80" height="60" viewBox="0 0 80 60" style={{ marginTop: 8, opacity: 0.6 }}>
-                                    {/* Pushup pose skeleton */}
-                                    <line x1="15" y1="25" x2="30" y2="20" stroke="#39ff14" strokeWidth="1.5" />
-                                    <line x1="30" y1="20" x2="50" y2="22" stroke="#39ff14" strokeWidth="1.5" />
-                                    <line x1="50" y1="22" x2="65" y2="35" stroke="#39ff14" strokeWidth="1.5" />
-                                    <line x1="65" y1="35" x2="75" y2="45" stroke="#39ff14" strokeWidth="1.5" />
-                                    <line x1="30" y1="20" x2="25" y2="40" stroke="#39ff14" strokeWidth="1.5" />
-                                    <line x1="25" y1="40" x2="20" y2="50" stroke="#39ff14" strokeWidth="1.5" />
-                                    {[[15, 25], [30, 20], [50, 22], [65, 35], [75, 45], [25, 40], [20, 50]].map(([x, y], i) => (
-                                        <circle key={i} cx={x} cy={y} r="2.5" fill="#39ff14" />
-                                    ))}
-                                </svg>
-                                {/* Bottom bar */}
-                                <div style={{
-                                    position: 'absolute', bottom: 12,
-                                    width: 36, height: 36, borderRadius: '50%',
-                                    background: '#39ff14',
-                                    boxShadow: '0 0 15px rgba(57,255,20,0.5)',
-                                }} />
-                            </div>
+                            <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                                👤 {tgUser.first_name}
+                            </span>
                         </div>
+                    )}
 
-                        {/* Feature bullets */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
-                            {[
-                                { icon: '📷', title: 'No Wearables', sub: 'Required' },
-                                { icon: '🤖', title: 'Computer Vision', sub: 'Anti-Cheat' },
-                                { icon: '🌐', title: '900M+', sub: 'User Reach' },
-                            ].map((f, i) => (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{
-                                        width: 40, height: 40, borderRadius: 10,
-                                        background: 'rgba(57,255,20,0.1)',
-                                        border: '1px solid rgba(57,255,20,0.2)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: 20,
-                                    }}>{f.icon}</div>
-                                    <div>
-                                        <div style={{ color: 'white', fontSize: 15, fontWeight: 700 }}>{f.title}</div>
-                                        <div style={{ color: '#64748b', fontSize: 13 }}>{f.sub}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                    {/* Hero Image */}
+                    <img
+                        src="/hero.png"
+                        alt="AI Push-Up Counter"
+                        style={{
+                            width: '90%',
+                            maxWidth: 380,
+                            borderRadius: 16,
+                            marginBottom: 24,
+                            boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 8px 32px rgba(0,0,0,0.5)',
+                        }}
+                    />
 
-                        {/* Tagline */}
-                        <h2 style={{
-                            color: 'white', fontSize: 28, fontWeight: 900, lineHeight: 1.2,
-                            margin: '0 0 24px', letterSpacing: 1,
+                    {/* Quick stats */}
+                    {history.length > 0 && (
+                        <div style={{
+                            background: 'rgba(57,255,20,0.08)',
+                            border: '1px solid rgba(57,255,20,0.2)',
+                            borderRadius: 12, padding: '8px 20px',
+                            marginBottom: 20,
                         }}>
-                            YOUR <span style={{ color: '#39ff14' }}>BODY</span> IS<br />
-                            THE CONTROLLER.
-                        </h2>
+                            <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
+                                🏆 {history.reduce((s, r) => s + r.count, 0)} push-ups in {history.length} workouts
+                            </span>
+                        </div>
+                    )}
 
-                        {/* Quick stats */}
-                        {history.length > 0 && (
-                            <div style={{
-                                background: 'rgba(57,255,20,0.06)',
-                                border: '1px solid rgba(57,255,20,0.15)',
-                                borderRadius: 12, padding: '8px 20px',
-                                marginBottom: 16, alignSelf: 'center',
-                            }}>
-                                <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
-                                    🏆 {history.reduce((s, r) => s + r.count, 0)} push-ups · {history.length} workouts
-                                </span>
-                            </div>
-                        )}
-
-                        {/* START button */}
-                        <button
-                            onClick={startWorkout}
-                            style={{
-                                alignSelf: 'center',
-                                background: '#39ff14', color: '#0a0f1a', fontWeight: 900,
-                                fontSize: 20, padding: '16px 52px', borderRadius: 50,
-                                border: 'none', cursor: 'pointer',
-                                boxShadow: '0 0 30px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.2)',
-                                letterSpacing: 2, textTransform: 'uppercase',
-                                animation: 'btnPulse 2s ease-in-out infinite',
-                            }}
-                        >
-                            START WORKOUT
-                        </button>
-                    </div>
-
-                    <style>{`
-                        @keyframes btnPulse {
-                            0%, 100% { box-shadow: 0 0 30px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.2); }
-                            50% { box-shadow: 0 0 40px rgba(57,255,20,0.7), 0 0 80px rgba(57,255,20,0.3); }
-                        }
-                    `}</style>
+                    <button
+                        onClick={startWorkout}
+                        style={{
+                            background: '#39ff14', color: 'black', fontWeight: 'bold',
+                            fontSize: 22, padding: '18px 48px', borderRadius: 50,
+                            border: 'none', cursor: 'pointer',
+                            boxShadow: '0 0 30px rgba(57,255,20,0.6)',
+                        }}
+                    >
+                        START WORKOUT
+                    </button>
+                    <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
+                        AI-powered push-up tracking
+                    </p>
                 </div>
             )}
 
