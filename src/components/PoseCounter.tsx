@@ -285,6 +285,13 @@ export const PoseCounter: React.FC = () => {
     const [exercise, setExercise] = useState<ExerciseType>('pushups');
     const exerciseRef = useRef<ExerciseType>('pushups');
 
+    // Cleanup dragon timeout
+    useEffect(() => {
+        return () => {
+            if (dragonTimeoutRef.current) clearTimeout(dragonTimeoutRef.current);
+        };
+    }, []);
+
     // Refs for state machine
     const countRef = useRef(0);
     const stageRef = useRef<"UP" | "DOWN">("UP");
