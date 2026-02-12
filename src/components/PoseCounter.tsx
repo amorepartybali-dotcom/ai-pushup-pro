@@ -193,12 +193,16 @@ const playCountdownBeep = () => playSound(countdownBeepWav);
 const playGoSound = () => playSound(goBeepWav);
 
 // ─── Share Card Generator ───
-const generateShareCard = async (count: number, duration: string, totalAll: number): Promise<File> => {
+const generateShareCard = async (count: number, duration: string, totalAll: number, exerciseType: ExerciseType): Promise<File> => {
     const W = 1080, H = 1920;
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d')!;
+
+    const isSquats = exerciseType === 'squats';
+    const exerciseLabel = isSquats ? 'squats' : 'push-ups';
+    const exerciseEmoji = isSquats ? '🦵' : '💪';
 
     // Background gradient
     const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -229,10 +233,10 @@ const generateShareCard = async (count: number, duration: string, totalAll: numb
     ctx.fillText(String(count), W / 2, H * 0.42);
     ctx.shadowBlur = 0;
 
-    // "push-ups" label
+    // Exercise label
     ctx.fillStyle = '#94a3b8';
     ctx.font = '40px system-ui, sans-serif';
-    ctx.fillText('push-ups', W / 2, H * 0.47);
+    ctx.fillText(exerciseLabel, W / 2, H * 0.47);
 
     // Stats
     ctx.fillStyle = 'white';
@@ -250,15 +254,15 @@ const generateShareCard = async (count: number, duration: string, totalAll: numb
     // App name
     ctx.fillStyle = '#39ff14';
     ctx.font = 'bold 36px system-ui, sans-serif';
-    ctx.fillText('💪 AI PUSH-UP PRO', W / 2, H * 0.68);
+    ctx.fillText(`${exerciseEmoji} AI PUSH-UP PRO`, W / 2, H * 0.68);
 
     ctx.fillStyle = '#64748b';
     ctx.font = '30px system-ui, sans-serif';
-    ctx.fillText('AI-powered push-up tracking', W / 2, H * 0.72);
+    ctx.fillText('AI-powered exercise tracking', W / 2, H * 0.72);
 
     // Convert to file
     const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
-    return new File([blob], 'pushup-result.png', { type: 'image/png' });
+    return new File([blob], 'workout-result.png', { type: 'image/png' });
 };
 
 export const PoseCounter: React.FC = () => {
@@ -655,8 +659,8 @@ export const PoseCounter: React.FC = () => {
         const angle = smoothAngle.current;
 
         // Thresholds differ for squats
-        const downThreshold = isSquats ? 100 : DOWN_ANGLE;  // squats: knee < 100°
-        const upThreshold = isSquats ? 155 : UP_ANGLE;        // squats: knee > 155°
+        const downThreshold = isSquats ? 75 : DOWN_ANGLE;   // squats: knee < 75° (deep squat)
+        const upThreshold = isSquats ? 155 : UP_ANGLE;       // squats: knee > 155°
 
         // Show angle near the joint
         const angleLandmark = isSquats ? landmarks[LM.LEFT_KNEE] : landmarks[LM.LEFT_ELBOW];
@@ -705,6 +709,8 @@ export const PoseCounter: React.FC = () => {
     if (phase === 'results') {
         const durationSec = Math.round((Date.now() - sessionStart) / 1000);
         const totalAll = history.reduce((sum, r) => sum + r.count, 0);
+        const totalPushups = history.filter(r => !r.exercise || r.exercise === 'pushups').reduce((s, r) => s + r.count, 0);
+        const totalSquats = history.filter(r => r.exercise === 'squats').reduce((s, r) => s + r.count, 0);
 
         return (
             <div style={{
@@ -732,11 +738,11 @@ export const PoseCounter: React.FC = () => {
                     {count}
                 </div>
                 <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>
-                    {exercise === 'squats' ? 'squats' : 'push-ups'}
+                    {exercise === 'squats' ? '🦵 squats' : '💪 push-ups'}
                 </p>
 
                 <div style={{
-                    display: 'flex', gap: 24, margin: '20px 0',
+                    display: 'flex', gap: 20, margin: '20px 0',
                     color: 'white', fontSize: 14,
                 }}>
                     <div style={{ textAlign: 'center' }}>
@@ -746,8 +752,12 @@ export const PoseCounter: React.FC = () => {
                         <div style={{ color: '#94a3b8' }}>Duration</div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 22, fontWeight: 'bold' }}>{totalAll}</div>
-                        <div style={{ color: '#94a3b8' }}>All-time</div>
+                        <div style={{ fontSize: 22, fontWeight: 'bold' }}>{totalPushups}</div>
+                        <div style={{ color: '#94a3b8' }}>💪 All-time</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 22, fontWeight: 'bold' }}>{totalSquats}</div>
+                        <div style={{ color: '#94a3b8' }}>🦵 All-time</div>
                     </div>
                 </div>
 
@@ -766,7 +776,7 @@ export const PoseCounter: React.FC = () => {
                                 padding: '6px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.08)' : 'none',
                             }}>
                                 <span style={{ color: '#cbd5e1', fontSize: 13 }}>
-                                    {new Date(r.date).toLocaleDateString()}
+                                    {r.exercise === 'squats' ? '🦵' : '💪'} {new Date(r.date).toLocaleDateString()}
                                 </span>
                                 <span style={{ color: '#39ff14', fontSize: 13, fontWeight: 'bold' }}>
                                     {r.count} reps · {formatDuration(r.durationSec)}
@@ -794,19 +804,20 @@ export const PoseCounter: React.FC = () => {
                     <button
                         onClick={async () => {
                             try {
-                                const file = await generateShareCard(count, formatDuration(durationSec), totalAll);
+                                const exLabel = exercise === 'squats' ? 'squats' : 'push-ups';
+                                const exEmoji = exercise === 'squats' ? '🦵' : '💪';
+                                const file = await generateShareCard(count, formatDuration(durationSec), totalAll, exercise);
                                 if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                                     await navigator.share({
                                         title: 'AI Push-Up Pro',
-                                        text: `💪 Just did ${count} push-ups!`,
+                                        text: `${exEmoji} Just did ${count} ${exLabel}!`,
                                         files: [file],
                                     });
                                 } else {
-                                    // Fallback: download the image
                                     const url = URL.createObjectURL(file);
                                     const a = document.createElement('a');
                                     a.href = url;
-                                    a.download = 'pushup-result.png';
+                                    a.download = 'workout-result.png';
                                     a.click();
                                     URL.revokeObjectURL(url);
                                     alert('Image saved! Share it to your Instagram Story 📸');
@@ -958,8 +969,8 @@ export const PoseCounter: React.FC = () => {
 
                     {/* Hero Image */}
                     <img
-                        src="/hero.png"
-                        alt="AI Push-Up Counter"
+                        src={exercise === 'squats' ? '/hero-squats.png' : '/hero.png'}
+                        alt={exercise === 'squats' ? 'AI Squat Counter' : 'AI Push-Up Counter'}
                         style={{
                             width: '90%',
                             maxWidth: 380,
