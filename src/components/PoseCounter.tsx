@@ -279,6 +279,9 @@ export const PoseCounter: React.FC = () => {
     const [sessionStart, setSessionStart] = useState(0);
     const [history, setHistory] = useState<WorkoutRecord[]>([]);
     const [countdown, setCountdown] = useState(0);
+    const [dragonState, setDragonState] = useState<'idle' | 'happy'>('idle');
+    const dragonTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const [exercise, setExercise] = useState<ExerciseType>('pushups');
     const exerciseRef = useRef<ExerciseType>('pushups');
 
@@ -689,6 +692,13 @@ export const PoseCounter: React.FC = () => {
                 setCount(countRef.current);
                 setStatus("⬆️ Rep " + countRef.current + "!");
 
+                // Trigger Dragon Happy State
+                setDragonState('happy');
+                if (dragonTimeoutRef.current) clearTimeout(dragonTimeoutRef.current);
+                dragonTimeoutRef.current = setTimeout(() => {
+                    setDragonState('idle');
+                }, 2000);
+
                 const c = countRef.current;
                 if (c % 10 === 0) {
                     playMilestoneSound();
@@ -873,6 +883,66 @@ export const PoseCounter: React.FC = () => {
                 />
             </div>
 
+            {/* 🐲 DRAGON COMPANION OVERLAY */}
+            {(phase === 'exercise' || phase === 'countdown') && (
+                <div style={{
+                    position: 'absolute', bottom: 20, right: 20, zIndex: 50,
+                    pointerEvents: 'none',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                }}>
+                    {/* Speech Bubble (optional or just reactions) */}
+                    {dragonState === 'happy' && (
+                        <div style={{
+                            background: 'white', color: 'black', padding: '6px 12px',
+                            borderRadius: '12px 12px 0 12px', marginBottom: 8,
+                            fontWeight: 'bold', fontSize: 14,
+                            animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        }}>
+                            {['NICE!', 'KEEP GOING!', 'POWER!', 'YEAH!'][count % 4]}
+                        </div>
+                    )}
+
+                    {/* Dragon Image */}
+                    <div style={{
+                        width: 140, height: 140,
+                        position: 'relative',
+                    }}>
+                        {/* Idle Dragon */}
+                        <img
+                            src="/dragon-idle.png"
+                            alt="Dragon"
+                            style={{
+                                width: '100%', height: '100%', objectFit: 'contain',
+                                position: 'absolute', top: 0, left: 0,
+                                opacity: dragonState === 'idle' ? 1 : 0,
+                                transition: 'opacity 0.2s',
+                                animation: 'float 3s ease-in-out infinite',
+                                filter: 'drop-shadow(0 0 15px rgba(57, 255, 20, 0.4))',
+                            }}
+                        />
+                        {/* Happy/Fire Dragon */}
+                        <img
+                            src="/dragon-happy.png"
+                            alt="Dragon Happy"
+                            style={{
+                                width: '100%', height: '100%', objectFit: 'contain',
+                                position: 'absolute', top: 0, left: 0,
+                                opacity: dragonState === 'happy' ? 1 : 0,
+                                transition: 'opacity 0.2s',
+                                transform: dragonState === 'happy' ? 'scale(1.2)' : 'scale(1)',
+                                filter: 'drop-shadow(0 0 25px rgba(57, 255, 20, 0.8))',
+                            }}
+                        />
+                    </div>
+                    <style>{`
+                        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+                        @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+                    `}</style>
+                </div>
+            )
+            }
+
             {/* HUD */}
             <div style={{
                 position: 'absolute', top: 20, left: 0, right: 0,
@@ -914,165 +984,173 @@ export const PoseCounter: React.FC = () => {
             </div>
 
             {/* STOP button (during exercise) */}
-            {phase === 'exercise' && (
-                <div style={{
-                    position: 'absolute', bottom: 40, zIndex: 40,
-                    pointerEvents: 'auto',
-                }}>
-                    <button
-                        onClick={stopSession}
-                        style={{
-                            background: '#ef4444', color: 'white', fontWeight: 'bold',
-                            fontSize: 18, padding: '14px 40px', borderRadius: 50,
-                            border: 'none', cursor: 'pointer',
-                            boxShadow: '0 0 20px rgba(239,68,68,0.5)',
-                        }}
-                    >
-                        ⏹ STOP
-                    </button>
-                </div>
-            )}
+            {
+                phase === 'exercise' && (
+                    <div style={{
+                        position: 'absolute', bottom: 40, zIndex: 40,
+                        pointerEvents: 'auto',
+                    }}>
+                        <button
+                            onClick={stopSession}
+                            style={{
+                                background: '#ef4444', color: 'white', fontWeight: 'bold',
+                                fontSize: 18, padding: '14px 40px', borderRadius: 50,
+                                border: 'none', cursor: 'pointer',
+                                boxShadow: '0 0 20px rgba(239,68,68,0.5)',
+                            }}
+                        >
+                            ⏹ STOP
+                        </button>
+                    </div>
+                )
+            }
 
             {/* Error */}
-            {errorMsg && (
-                <div style={{
-                    position: 'absolute', bottom: 100, left: 20, right: 20,
-                    background: 'rgba(255,0,0,0.2)', border: '1px solid red',
-                    borderRadius: 12, padding: 16, zIndex: 40, textAlign: 'center',
-                }}>
-                    <p style={{ color: 'red', fontWeight: 'bold', margin: 0 }}>Error</p>
-                    <p style={{ color: 'white', fontSize: 14, marginTop: 8 }}>{errorMsg}</p>
-                </div>
-            )}
+            {
+                errorMsg && (
+                    <div style={{
+                        position: 'absolute', bottom: 100, left: 20, right: 20,
+                        background: 'rgba(255,0,0,0.2)', border: '1px solid red',
+                        borderRadius: 12, padding: 16, zIndex: 40, textAlign: 'center',
+                    }}>
+                        <p style={{ color: 'red', fontWeight: 'bold', margin: 0 }}>Error</p>
+                        <p style={{ color: 'white', fontSize: 14, marginTop: 8 }}>{errorMsg}</p>
+                    </div>
+                )
+            }
 
             {/* Start Screen */}
-            {phase === 'idle' && (
-                <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 40%, #1a2744 100%)',
-                    padding: 24,
-                }}>
-                    {/* User badge */}
-                    {tgUser && (
-                        <div style={{
-                            position: 'absolute', top: 16,
-                            background: 'rgba(255,255,255,0.08)', padding: '4px 16px',
-                            borderRadius: 20,
-                        }}>
-                            <span style={{ color: '#94a3b8', fontSize: 13 }}>
-                                👤 {tgUser.first_name}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Hero Image */}
-                    <img
-                        src={exercise === 'squats' ? '/hero-squats.png' : '/hero.png'}
-                        alt={exercise === 'squats' ? 'AI Squat Counter' : 'AI Push-Up Counter'}
-                        style={{
-                            width: '90%',
-                            maxWidth: 380,
-                            borderRadius: 16,
-                            marginBottom: 20,
-                            boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 8px 32px rgba(0,0,0,0.5)',
-                        }}
-                    />
-
-                    {/* Exercise selector */}
+            {
+                phase === 'idle' && (
                     <div style={{
-                        display: 'flex', gap: 12, marginBottom: 20, width: '100%', maxWidth: 340,
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 40%, #1a2744 100%)',
+                        padding: 24,
                     }}>
-                        {(['pushups', 'squats'] as ExerciseType[]).map(ex => (
-                            <button
-                                key={ex}
-                                onClick={() => setExercise(ex)}
-                                style={{
-                                    flex: 1, padding: '14px 8px',
-                                    borderRadius: 14,
-                                    border: exercise === ex
-                                        ? '2px solid #39ff14'
-                                        : '2px solid rgba(255,255,255,0.12)',
-                                    background: exercise === ex
-                                        ? 'rgba(57,255,20,0.12)'
-                                        : 'rgba(255,255,255,0.04)',
-                                    cursor: 'pointer',
-                                    display: 'flex', flexDirection: 'column',
-                                    alignItems: 'center', gap: 4,
-                                    transition: 'all 0.2s',
-                                }}
-                            >
-                                <span style={{ fontSize: 28 }}>
-                                    {ex === 'pushups' ? '💪' : '🦵'}
+                        {/* User badge */}
+                        {tgUser && (
+                            <div style={{
+                                position: 'absolute', top: 16,
+                                background: 'rgba(255,255,255,0.08)', padding: '4px 16px',
+                                borderRadius: 20,
+                            }}>
+                                <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                                    👤 {tgUser.first_name}
                                 </span>
-                                <span style={{
-                                    color: exercise === ex ? '#39ff14' : '#94a3b8',
-                                    fontSize: 14, fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                }}>
-                                    {ex === 'pushups' ? 'Push-ups' : 'Squats'}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                            </div>
+                        )}
 
-                    {/* Quick stats */}
-                    {history.length > 0 && (
+                        {/* Hero Image */}
+                        <img
+                            src={exercise === 'squats' ? '/hero-squats.png' : '/hero.png'}
+                            alt={exercise === 'squats' ? 'AI Squat Counter' : 'AI Push-Up Counter'}
+                            style={{
+                                width: '90%',
+                                maxWidth: 380,
+                                borderRadius: 16,
+                                marginBottom: 20,
+                                boxShadow: '0 0 40px rgba(57,255,20,0.15), 0 8px 32px rgba(0,0,0,0.5)',
+                            }}
+                        />
+
+                        {/* Exercise selector */}
                         <div style={{
-                            background: 'rgba(57,255,20,0.08)',
-                            border: '1px solid rgba(57,255,20,0.2)',
-                            borderRadius: 12, padding: '8px 20px',
-                            marginBottom: 20,
+                            display: 'flex', gap: 12, marginBottom: 20, width: '100%', maxWidth: 340,
                         }}>
-                            <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
-                                🏆 {history.reduce((s, r) => s + r.count, 0)} reps in {history.length} workouts
-                            </span>
+                            {(['pushups', 'squats'] as ExerciseType[]).map(ex => (
+                                <button
+                                    key={ex}
+                                    onClick={() => setExercise(ex)}
+                                    style={{
+                                        flex: 1, padding: '14px 8px',
+                                        borderRadius: 14,
+                                        border: exercise === ex
+                                            ? '2px solid #39ff14'
+                                            : '2px solid rgba(255,255,255,0.12)',
+                                        background: exercise === ex
+                                            ? 'rgba(57,255,20,0.12)'
+                                            : 'rgba(255,255,255,0.04)',
+                                        cursor: 'pointer',
+                                        display: 'flex', flexDirection: 'column',
+                                        alignItems: 'center', gap: 4,
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <span style={{ fontSize: 28 }}>
+                                        {ex === 'pushups' ? '💪' : '🦵'}
+                                    </span>
+                                    <span style={{
+                                        color: exercise === ex ? '#39ff14' : '#94a3b8',
+                                        fontSize: 14, fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        {ex === 'pushups' ? 'Push-ups' : 'Squats'}
+                                    </span>
+                                </button>
+                            ))}
                         </div>
-                    )}
 
-                    <button
-                        onClick={startWorkout}
-                        style={{
-                            background: '#39ff14', color: 'black', fontWeight: 'bold',
-                            fontSize: 22, padding: '18px 48px', borderRadius: 50,
-                            border: 'none', cursor: 'pointer',
-                            boxShadow: '0 0 30px rgba(57,255,20,0.6)',
-                        }}
-                    >
-                        START {exercise === 'pushups' ? 'PUSH-UPS' : 'SQUATS'}
-                    </button>
-                    <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
-                        AI-powered exercise tracking
-                    </p>
-                </div>
-            )}
+                        {/* Quick stats */}
+                        {history.length > 0 && (
+                            <div style={{
+                                background: 'rgba(57,255,20,0.08)',
+                                border: '1px solid rgba(57,255,20,0.2)',
+                                borderRadius: 12, padding: '8px 20px',
+                                marginBottom: 20,
+                            }}>
+                                <span style={{ color: '#39ff14', fontSize: 14, fontWeight: 600 }}>
+                                    🏆 {history.reduce((s, r) => s + r.count, 0)} reps in {history.length} workouts
+                                </span>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={startWorkout}
+                            style={{
+                                background: '#39ff14', color: 'black', fontWeight: 'bold',
+                                fontSize: 22, padding: '18px 48px', borderRadius: 50,
+                                border: 'none', cursor: 'pointer',
+                                boxShadow: '0 0 30px rgba(57,255,20,0.6)',
+                            }}
+                        >
+                            START {exercise === 'pushups' ? 'PUSH-UPS' : 'SQUATS'}
+                        </button>
+                        <p style={{ color: '#64748b', fontSize: 13, margin: '12px 0 0' }}>
+                            AI-powered exercise tracking
+                        </p>
+                    </div>
+                )
+            }
 
             {/* Countdown Overlay */}
-            {phase === 'countdown' && (
-                <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 100%)',
-                }}>
-                    <p style={{ color: '#94a3b8', fontSize: 18, margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: 2 }}>
-                        Get into position!
-                    </p>
+            {
+                phase === 'countdown' && (
                     <div style={{
-                        fontSize: 140, fontWeight: 900, color: '#39ff14',
-                        textShadow: '0 0 60px #39ff14, 0 0 120px rgba(57,255,20,0.3)',
-                        lineHeight: 1,
-                        animation: 'pulse 1s ease-in-out infinite',
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(180deg, #0a0f1a 0%, #0f172a 100%)',
                     }}>
-                        {countdown}
+                        <p style={{ color: '#94a3b8', fontSize: 18, margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: 2 }}>
+                            Get into position!
+                        </p>
+                        <div style={{
+                            fontSize: 140, fontWeight: 900, color: '#39ff14',
+                            textShadow: '0 0 60px #39ff14, 0 0 120px rgba(57,255,20,0.3)',
+                            lineHeight: 1,
+                            animation: 'pulse 1s ease-in-out infinite',
+                        }}>
+                            {countdown}
+                        </div>
+                        <p style={{ color: '#64748b', fontSize: 14, marginTop: 24 }}>
+                            Lie down and place hands on floor
+                        </p>
+                        <style>{`@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
                     </div>
-                    <p style={{ color: '#64748b', fontSize: 14, marginTop: 24 }}>
-                        Lie down and place hands on floor
-                    </p>
-                    <style>{`@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }`}</style>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
